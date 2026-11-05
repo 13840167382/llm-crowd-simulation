@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fc5c707e205f4ebeb4a18939e116a24, type: 3}
+  m_Name: SpawnPrefabDatabase
+  m_EditorClassIdentifier: 
+  defaultPrefab: {fileID: 8177475710746701500, guid: fe8666ba32c7f45999ed0b28c4b5fdb3, type: 3}
+  entries:
+  - typeId: tourist
+    prefab: {fileID: 8177475710746701500, guid: fe8666ba32c7f45999ed0b28c4b5fdb3, type: 3}
+  - typeId: shopper
+    prefab: {fileID: 8177475710746701500, guid: 425f93139dde247aaade5a2cc015eab0, type: 3}
+  - typeId: commuter
+    prefab: {fileID: 8177475710746701500, guid: 2c0689624e8324376a33faea35a0a19b, type: 3}
+  - typeId: resident
+    prefab: {fileID: 8177475710746701500, guid: 54d0a020603e14af2a15989acc39b1e5, type: 3}
+  - typeId: student
+    prefab: {fileID: 8177475710746701500, guid: adcc2c71b855443a8b119ecb85aa9d4b, type: 3}
+  - typeId: staff
+    prefab: {fileID: 8177475710746701500, guid: 1c25de1b8d6c34876817de57f40b473e, type: 3}

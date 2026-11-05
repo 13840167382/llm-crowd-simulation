@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crowd-flow-simulation-backend"
+version = "0.1.0"
+description = "人群流动模拟系统的后端服务骨架。"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.1,<1.0.0",
+    "sqlalchemy>=2.0.43,<3.0.0",
+    "uvicorn>=0.35.0,<1.0.0",
+    "alembic>=1.16.5,<2.0.0",
+    "psycopg[binary]>=3.2.10,<4.0.0",
+    "redis>=6.4.0,<7.0.0",
+    "rq>=2.7.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+crowd-sim-backend = "backend.__main__:main"
+
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["backend*"]
+
+[tool.setuptools.package-data]
+backend = ["alembic.ini", "app/infrastructure/db/migrations/script.py.mako", "app/static/*.html", "app/static/*.css"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: 需要真实 PostgreSQL / Redis / RQ 的集成测试",
+    "e2e: 覆盖主业务链路的端到端测试",
+]

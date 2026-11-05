@@ -1,0 +1,44 @@
+# Python 缓存与编译产物
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# 测试、覆盖率与静态检查产物
+.pytest_cache/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# 虚拟环境与打包产物
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+pip-wheel-metadata/
+
+# 本地环境变量文件
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.production.example
+
+# 编辑器与 IDE 配置
+.idea/
+.vscode/
+
+# 日志与临时文件
+*.log
+logs/
+tmp/
+temp/
+
+# 操作系统杂项文件
+Thumbs.db
+Desktop.ini

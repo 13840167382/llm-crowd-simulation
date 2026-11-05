@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 553bb85d53bde4dbdbed6a396d655cb5, type: 3}
+  m_Name: Tourist
+  m_EditorClassIdentifier: 
+  profileId: default
+  displayName: Default Crowd Profile
+  preferredCrowdTypeId: tourist
+  initialCrowdCount: 20
+  crowdTypeAllocations:
+  - typeId: tourist
+    count: 300
+  - typeId: shopper
+    count: 250
+  - typeId: student
+    count: 100
+  - typeId: resident
+    count: 250
+  - typeId: staff
+    count: 50
+  - typeId: commuter
+    count: 100
+  decisionPreference:
+    algorithmScoreWeight: 0.3
+    crowdPressureWeight: 0.45
+    distanceWeight: 0.2
+    exitCapacityWeight: 0.05
+    crowdTypeAttractionWeight: 1.1
+    crowdTypeAttractionContrast: 2
+    defaultZoneCapacity: 120
+    distanceNormalizationMeters: 15
+    exitCapacityNormalization: 4
+  crowdTypeDecisionPreferences:
+  - crowdType: tourist
+    scoring:
+      algorithmScoreWeight: 0.3
+      crowdPressureWeight: 0.45
+      distanceWeight: 0.1
+      exitCapacityWeight: 0.05
+      crowdTypeAttractionWeight: 1.1
+      crowdTypeAttractionContrast: 2
+      defaultZoneCapacity: 120
+      distanceNormalizationMeters: 15
+      exitCapacityNormalization: 4
+  - crowdType: shopper
+    scoring:
+      algorithmScoreWeight: 0.3
+      crowdPressureWeight: 0.6
+      distanceWeight: 0.2
+      exitCapacityWeight: 0.05
+      crowdTypeAttractionWeight: 1.1
+      crowdTypeAttractionContrast: 2
+      defaultZoneCapacity: 120
+      distanceNormalizationMeters: 15
+      exitCapacityNormalization: 4
+  - crowdType: shopper
+    scoring:
+      algorithmScoreWeight: 0.3
+      crowdPressureWeight: 0.6
+      distanceWeight: 0.2
+      exitCapacityWeight: 0.05
+      crowdTypeAttractionWeight: 1.1
+      crowdTypeAttractionContrast: 2
+      defaultZoneCapacity: 120
+      distanceNormalizationMeters: 15
+      exitCapacityNormalization: 4

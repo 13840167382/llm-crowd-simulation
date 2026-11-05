@@ -1,0 +1,50 @@
+# Unity generated files
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/UserSettings/
+/MemoryCaptures/
+*.csproj
+*.sln
+*.user
+.DS_Store
+._*
+__MACOSX/
+
+# Commercial dependency: install your own licensed copy locally.
+/Assets/ThirdParty/Modern UI Pack/
+/Assets/ThirdParty/Modern UI Pack.meta
+
+# Python and runtime state
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+logs/
+*.log
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.production.example
+*.db
+*.sqlite
+*.sqlite3
+
+# Large experiments are supplied separately, not copied into git history.
+/Assets/HeatmapCaptures*/
+/offline_analysis/outputs/
+/llm组/
+/无llm组/
+/斯坦福行人数据集/annotations/
+/斯坦福行人数据集/video/
+/data/
+/dist/
+*.zip
+*.rar
+*.7z

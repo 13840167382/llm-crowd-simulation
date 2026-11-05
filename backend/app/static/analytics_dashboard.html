@@ -1,0 +1,988 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>实验分析驾驶舱</title>
+    <link rel="stylesheet" href="/ui/analytics.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="panel sidebar">
+      <div class="brand">
+        <div class="eyebrow">Crowd Flow</div>
+        <h1>实验分析驾驶舱</h1>
+        <p>直接调后端现有分析接口，把热力图、统计概览、分类型对比和路径轨迹放到一个页面里。</p>
+      </div>
+
+      <div class="control-group">
+        <h2 class="group-title">连接</h2>
+        <label>
+          API 前缀
+          <input id="apiBase" type="text" value="">
+          <span class="field-note">默认使用当前服务的 `/api/v1`，也可以改成别的环境地址。</span>
+        </label>
+        <label>
+          实验 ID
+          <input id="experimentId" type="text" placeholder="exp_xxx">
+        </label>
+        <div class="button-row">
+          <button id="loadStatsBtn" class="btn btn-primary" type="button">加载统计</button>
+          <button id="loadAllBtn" class="btn btn-secondary" type="button">一键刷新</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h2 class="group-title">时间与网格</h2>
+        <div class="inline-grid">
+          <label>
+            开始时间(ms)
+            <input id="timeStart" type="number" min="0" step="1" placeholder="1000">
+          </label>
+          <label>
+            结束时间(ms)
+            <input id="timeEnd" type="number" min="0" step="1" placeholder="1200">
+          </label>
+        </div>
+        <div class="inline-grid">
+          <label>
+            原点 X
+            <input id="originX" type="number" step="0.1" value="0">
+          </label>
+          <label>
+            原点 Z
+            <input id="originZ" type="number" step="0.1" value="0">
+          </label>
+        </div>
+        <div class="inline-grid">
+          <label>
+            单元格边长
+            <input id="cellSize" type="number" min="0.1" step="0.1" value="10">
+          </label>
+          <label>
+            列数
+            <input id="cols" type="number" min="1" step="1" value="8">
+          </label>
+        </div>
+        <label>
+          行数
+          <input id="rows" type="number" min="1" step="1" value="8">
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h2 class="group-title">热力图</h2>
+        <div class="inline-grid">
+          <label>
+            指标
+            <select id="metric">
+              <option value="passage_count">passage_count</option>
+              <option value="stay_duration">stay_duration</option>
+              <option value="peak_density">peak_density</option>
+              <option value="queue_frequency">queue_frequency</option>
+              <option value="avg_speed">avg_speed</option>
+            </select>
+          </label>
+          <label>
+            归一化
+            <select id="normalization">
+              <option value="min_max">min_max</option>
+              <option value="none">none</option>
+              <option value="percentile_99">percentile_99</option>
+              <option value="log">log</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          人群类型过滤
+          <select id="crowdTypeFilter">
+            <option value="">全部类型</option>
+          </select>
+        </label>
+        <label>
+          区域过滤
+          <input id="zoneFilter" type="text" placeholder="可选 zone_id">
+        </label>
+        <div class="button-row">
+          <button id="loadHeatmapBtn" class="btn btn-primary" type="button">更新热力图</button>
+          <button id="loadCompareBtn" class="btn btn-secondary" type="button">生成人群对比</button>
+        </div>
+        <label>
+          对比人群类型
+          <select id="compareTypes" multiple></select>
+          <span class="field-note">按住 Ctrl 或 Shift 可以多选。</span>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h2 class="group-title">路径追踪</h2>
+        <label>
+          路径人群类型
+          <select id="pathCrowdType">
+            <option value="">先加载统计</option>
+          </select>
+        </label>
+        <div class="inline-grid">
+          <label>
+            采样率
+            <input id="sampleRate" type="number" min="1" max="10" step="1" value="1">
+          </label>
+          <label>
+            最多人数
+            <input id="maxAgents" type="number" min="1" max="500" step="1" value="80">
+          </label>
+        </div>
+        <div class="tiny-actions">
+          <button id="loadPathBtn" class="btn btn-primary" type="button">更新路径追踪</button>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <section class="panel hero">
+        <div>
+          <div class="eyebrow">Realtime Storyboard</div>
+          <h2>热区、拥堵、路径与决策，一页看完。</h2>
+          <p>
+            这个页面会直接请求 `/stats`、`/heatmap`、`/heatmap/compare` 和 `/path-traces`，
+            适合联调后端、演示实验结果、以及快速判断哪一类人群在什么区域出现拥挤与滞留。
+          </p>
+        </div>
+        <div class="hero-side">
+          <div id="statusPill" class="status-pill" data-tone="neutral">等待加载</div>
+          <div class="panel-note">
+            <strong>建议流程</strong>
+            <div class="meta">先填实验 ID 点“加载统计”，让页面自动回填时间范围和人群类型，再画热力图与轨迹。</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="overviewCards" class="card-grid">
+        <article class="panel metric-card">
+          <div class="metric-label">准备就绪</div>
+          <div class="metric-value">--</div>
+          <div class="metric-sub">填入实验 ID 后即可开始请求。</div>
+        </article>
+      </section>
+
+      <section class="split">
+        <article class="panel section-card">
+          <div class="section-head">
+            <div>
+              <h3>分析摘要</h3>
+              <p>根据 `/stats` 自动提炼出最值得先关注的几件事。</p>
+            </div>
+          </div>
+          <div id="insights" class="insights">
+            <div class="empty">统计数据还没加载，摘要会在拿到实验概览后自动生成。</div>
+          </div>
+        </article>
+
+        <article class="panel section-card">
+          <div class="section-head">
+            <div>
+              <h3>人群快照</h3>
+              <p>按实验初始分配的人群类型快速查看颜色、数量与筛选项。</p>
+            </div>
+          </div>
+          <div id="crowdTypeChips" class="chip-row">
+            <div class="empty">加载统计后会在这里显示人群类型。</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="split">
+        <article class="panel section-card">
+          <div class="section-head">
+            <div>
+              <h3>热力图</h3>
+              <p>展示当前时间窗口下的人流热点分布。</p>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="heatmapCanvas" width="720" height="540"></canvas>
+            <div class="legend">
+              <div class="legend-bar"></div>
+              <div class="legend-labels">
+                <span id="heatmapLegendMin">0</span>
+                <span id="heatmapLegendMid">中位热度</span>
+                <span id="heatmapLegendMax">1</span>
+              </div>
+            </div>
+          </div>
+          <div id="heatmapStats" class="stats-grid">
+            <div class="mini-stat"><strong>非空网格</strong><span>--</span></div>
+            <div class="mini-stat"><strong>总网格数</strong><span>--</span></div>
+            <div class="mini-stat"><strong>原始最大值</strong><span>--</span></div>
+            <div class="mini-stat"><strong>归一化最大值</strong><span>--</span></div>
+          </div>
+        </article>
+
+        <article class="panel section-card">
+          <div class="section-head">
+            <div>
+              <h3>路径追踪</h3>
+              <p>抽样展示指定人群类型的移动路径，方便确认入口、拐点和出口选择。</p>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="pathCanvas" width="720" height="540"></canvas>
+          </div>
+          <div id="pathMeta" class="trace-meta">
+            <span>等待数据</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel section-card">
+        <div class="section-head">
+          <div>
+            <h3>人群热力对比</h3>
+            <p>同一时间窗口下，不同人群类型各自的热点分布。</p>
+          </div>
+        </div>
+        <div id="compareGrid" class="compare-grid">
+          <div class="empty">先选择至少一个人群类型，再点击“生成人群对比”。</div>
+        </div>
+      </section>
+
+      <section class="panel section-card">
+        <div class="section-head">
+          <div>
+            <h3>区域与出口统计</h3>
+            <p>来自 `/stats` 的明细表，用来快速定位高峰区域和拥堵出口。</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>区域</th>
+                <th>峰值人数</th>
+                <th>峰值时间</th>
+                <th>平均人数</th>
+                <th>平均停留(ms)</th>
+                <th>总进入</th>
+                <th>总离开</th>
+                <th>利用率</th>
+              </tr>
+            </thead>
+            <tbody id="zoneTableBody">
+              <tr><td colspan="8" class="empty">暂无区域统计。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="height: 16px;"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>出口</th>
+                <th>总通过数</th>
+                <th>平均排队</th>
+                <th>最大排队</th>
+                <th>平均等待(ms)</th>
+                <th>最大等待(ms)</th>
+                <th>吞吐量/分钟</th>
+              </tr>
+            </thead>
+            <tbody id="exitTableBody">
+              <tr><td colspan="7" class="empty">暂无出口统计。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel section-card">
+        <div class="section-head">
+          <div>
+            <h3>接口日志</h3>
+            <p>保留最近一次成功或失败的请求摘要，方便联调排查。</p>
+          </div>
+        </div>
+        <div id="logBox" class="log-box">页面已加载，等待请求。</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      stats: null,
+      heatmap: null,
+      compare: null,
+      pathTraces: null,
+    };
+
+    const elements = {
+      apiBase: document.getElementById("apiBase"),
+      experimentId: document.getElementById("experimentId"),
+      timeStart: document.getElementById("timeStart"),
+      timeEnd: document.getElementById("timeEnd"),
+      originX: document.getElementById("originX"),
+      originZ: document.getElementById("originZ"),
+      cellSize: document.getElementById("cellSize"),
+      cols: document.getElementById("cols"),
+      rows: document.getElementById("rows"),
+      metric: document.getElementById("metric"),
+      normalization: document.getElementById("normalization"),
+      crowdTypeFilter: document.getElementById("crowdTypeFilter"),
+      zoneFilter: document.getElementById("zoneFilter"),
+      compareTypes: document.getElementById("compareTypes"),
+      pathCrowdType: document.getElementById("pathCrowdType"),
+      sampleRate: document.getElementById("sampleRate"),
+      maxAgents: document.getElementById("maxAgents"),
+      loadStatsBtn: document.getElementById("loadStatsBtn"),
+      loadAllBtn: document.getElementById("loadAllBtn"),
+      loadHeatmapBtn: document.getElementById("loadHeatmapBtn"),
+      loadCompareBtn: document.getElementById("loadCompareBtn"),
+      loadPathBtn: document.getElementById("loadPathBtn"),
+      statusPill: document.getElementById("statusPill"),
+      overviewCards: document.getElementById("overviewCards"),
+      insights: document.getElementById("insights"),
+      crowdTypeChips: document.getElementById("crowdTypeChips"),
+      heatmapCanvas: document.getElementById("heatmapCanvas"),
+      pathCanvas: document.getElementById("pathCanvas"),
+      heatmapStats: document.getElementById("heatmapStats"),
+      compareGrid: document.getElementById("compareGrid"),
+      pathMeta: document.getElementById("pathMeta"),
+      zoneTableBody: document.getElementById("zoneTableBody"),
+      exitTableBody: document.getElementById("exitTableBody"),
+      logBox: document.getElementById("logBox"),
+      heatmapLegendMin: document.getElementById("heatmapLegendMin"),
+      heatmapLegendMid: document.getElementById("heatmapLegendMid"),
+      heatmapLegendMax: document.getElementById("heatmapLegendMax"),
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    elements.apiBase.value = urlParams.get("api_base") || `${window.location.origin}/api/v1`;
+    elements.experimentId.value = urlParams.get("experiment_id") || "";
+
+    function setStatus(text, tone = "neutral") {
+      elements.statusPill.textContent = text;
+      elements.statusPill.dataset.tone = tone;
+    }
+
+    function log(message, payload) {
+      const lines = [`[${new Date().toLocaleTimeString()}] ${message}`];
+      if (payload !== undefined) {
+        lines.push(JSON.stringify(payload, null, 2));
+      }
+      elements.logBox.textContent = lines.join("\n");
+    }
+
+    function updateUrlState() {
+      const params = new URLSearchParams(window.location.search);
+      const experimentId = elements.experimentId.value.trim();
+      const apiBase = elements.apiBase.value.trim();
+      if (experimentId) {
+        params.set("experiment_id", experimentId);
+      } else {
+        params.delete("experiment_id");
+      }
+      if (apiBase) {
+        params.set("api_base", apiBase);
+      } else {
+        params.delete("api_base");
+      }
+      const next = `${window.location.pathname}?${params.toString()}`;
+      history.replaceState(null, "", next);
+    }
+
+    function requestId(prefix) {
+      return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    }
+
+    function requireValue(value, label) {
+      if (value === null || value === undefined || String(value).trim() === "") {
+        throw new Error(`${label} 不能为空`);
+      }
+      return String(value).trim();
+    }
+
+    function getExperimentId() {
+      return requireValue(elements.experimentId.value, "实验 ID");
+    }
+
+    function getApiBase() {
+      return requireValue(elements.apiBase.value, "API 前缀").replace(/\/$/, "");
+    }
+
+    function buildExperimentHeaders(experimentId) {
+      return {
+        "Content-Type": "application/json",
+        "X-Request-Id": requestId("analytics-ui"),
+        "X-Experiment-Id": experimentId,
+      };
+    }
+
+    async function apiRequest(path, options = {}, experimentId = null) {
+      const headers = {
+        "X-Request-Id": requestId("analytics-ui"),
+        ...(options.headers || {}),
+      };
+
+      if (experimentId) {
+        headers["X-Experiment-Id"] = experimentId;
+      }
+
+      const response = await fetch(`${getApiBase()}${path}`, {
+        ...options,
+        headers,
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.message || `HTTP ${response.status}`);
+      }
+      if (!payload || payload.code !== 0) {
+        throw new Error(payload?.message || "接口返回异常");
+      }
+      return payload.data;
+    }
+
+    function numberValue(element, label, fallback = null) {
+      if (element.value === "" && fallback !== null) {
+        return fallback;
+      }
+      const value = Number(element.value);
+      if (Number.isNaN(value)) {
+        throw new Error(`${label} 必须是数字`);
+      }
+      return value;
+    }
+
+    function getGridConfig() {
+      return {
+        origin: {
+          x: numberValue(elements.originX, "原点 X"),
+          z: numberValue(elements.originZ, "原点 Z"),
+        },
+        cell_size: numberValue(elements.cellSize, "单元格边长"),
+        cols: numberValue(elements.cols, "列数"),
+        rows: numberValue(elements.rows, "行数"),
+      };
+    }
+
+    function getHeatmapPayload() {
+      return {
+        time_start_ms: numberValue(elements.timeStart, "开始时间"),
+        time_end_ms: numberValue(elements.timeEnd, "结束时间"),
+        grid_config: getGridConfig(),
+        metric: elements.metric.value,
+        crowd_type_filter: elements.crowdTypeFilter.value || null,
+        zone_id_filter: elements.zoneFilter.value.trim() || null,
+        normalization: elements.normalization.value,
+      };
+    }
+
+    function formatNumber(value, digits = 0) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return "--";
+      }
+      return Number(value).toLocaleString("zh-CN", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined) {
+        return "--";
+      }
+      return `${(Number(value) * 100).toFixed(1)}%`;
+    }
+
+    function hexToRgb(hex) {
+      const clean = (hex || "#cf5c36").replace("#", "");
+      const normalized = clean.length === 3
+        ? clean.split("").map((chunk) => chunk + chunk).join("")
+        : clean;
+      return {
+        r: parseInt(normalized.slice(0, 2), 16),
+        g: parseInt(normalized.slice(2, 4), 16),
+        b: parseInt(normalized.slice(4, 6), 16),
+      };
+    }
+
+    function rgba(hex, alpha) {
+      const { r, g, b } = hexToRgb(hex);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function drawHeatmap(canvas, gridConfig, cells, baseHex = "#cf5c36") {
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const cols = gridConfig.cols;
+      const rows = gridConfig.rows;
+      const cellWidth = width / cols;
+      const cellHeight = height / rows;
+
+      ctx.fillStyle = "#fffdf8";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "rgba(25, 49, 41, 0.12)";
+      ctx.lineWidth = 1;
+
+      const maxValue = Math.max(...cells, 0);
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          const index = row * cols + col;
+          const value = cells[index] || 0;
+          const normalized = maxValue > 0 ? value / maxValue : value;
+          const alpha = Math.max(0.06, normalized * 0.92);
+          ctx.fillStyle = rgba(baseHex, alpha);
+          ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+          ctx.strokeRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+
+          if (cols <= 10 && rows <= 10) {
+            ctx.fillStyle = normalized > 0.58 ? "rgba(255,255,255,0.92)" : "var(--grid-label)";
+            ctx.font = "12px Consolas";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(formatNumber(value, 2), col * cellWidth + cellWidth / 2, row * cellHeight + cellHeight / 2);
+          }
+        }
+      }
+    }
+
+    function drawPathTraces(canvas, traces, colorHex = "#2e7d6a", fallbackGrid = null) {
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#fffdf8";
+      ctx.fillRect(0, 0, width, height);
+
+      const allPoints = traces.flatMap((trace) => trace.points || []);
+      if (!allPoints.length) {
+        ctx.fillStyle = "rgba(25, 49, 41, 0.64)";
+        ctx.font = "16px 'Segoe UI Variable Text', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("暂无路径数据", width / 2, height / 2);
+        return;
+      }
+
+      let minX;
+      let maxX;
+      let minZ;
+      let maxZ;
+
+      if (fallbackGrid) {
+        minX = fallbackGrid.origin.x;
+        minZ = fallbackGrid.origin.z;
+        maxX = fallbackGrid.origin.x + fallbackGrid.cols * fallbackGrid.cell_size;
+        maxZ = fallbackGrid.origin.z + fallbackGrid.rows * fallbackGrid.cell_size;
+      } else {
+        minX = Math.min(...allPoints.map((point) => point[1]));
+        maxX = Math.max(...allPoints.map((point) => point[1]));
+        minZ = Math.min(...allPoints.map((point) => point[2]));
+        maxZ = Math.max(...allPoints.map((point) => point[2]));
+      }
+
+      if (minX === maxX) {
+        maxX += 1;
+      }
+      if (minZ === maxZ) {
+        maxZ += 1;
+      }
+
+      const padding = 28;
+      const scaleX = (width - padding * 2) / (maxX - minX);
+      const scaleY = (height - padding * 2) / (maxZ - minZ);
+
+      ctx.strokeStyle = "rgba(25, 49, 41, 0.08)";
+      ctx.lineWidth = 1;
+      for (let x = padding; x <= width - padding; x += (width - padding * 2) / 8) {
+        ctx.beginPath();
+        ctx.moveTo(x, padding);
+        ctx.lineTo(x, height - padding);
+        ctx.stroke();
+      }
+      for (let y = padding; y <= height - padding; y += (height - padding * 2) / 8) {
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+      }
+
+      traces.forEach((trace, index) => {
+        const alpha = Math.max(0.15, Math.min(0.42, 0.18 + index * 0.008));
+        ctx.strokeStyle = rgba(colorHex, alpha);
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+
+        trace.points.forEach((point, pointIndex) => {
+          const x = padding + (point[1] - minX) * scaleX;
+          const y = height - padding - (point[2] - minZ) * scaleY;
+          if (pointIndex === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+
+        const first = trace.points[0];
+        const last = trace.points[trace.points.length - 1];
+        if (first) {
+          const startX = padding + (first[1] - minX) * scaleX;
+          const startY = height - padding - (first[2] - minZ) * scaleY;
+          ctx.fillStyle = rgba(colorHex, 0.92);
+          ctx.beginPath();
+          ctx.arc(startX, startY, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (last) {
+          const endX = padding + (last[1] - minX) * scaleX;
+          const endY = height - padding - (last[2] - minZ) * scaleY;
+          ctx.fillStyle = rgba("#193129", 0.88);
+          ctx.beginPath();
+          ctx.arc(endX, endY, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    function renderCards(stats) {
+      const total = stats.agent_stats.total_count;
+      const active = stats.agent_stats.current_active_count;
+      const exited = stats.agent_stats.exited_count;
+      const fallbackRate = stats.decision_stats.llm_fallback_rate;
+      const busiestZone = [...stats.zone_stats].sort((left, right) => right.peak_count - left.peak_count)[0];
+
+      elements.overviewCards.innerHTML = `
+        <article class="panel metric-card">
+          <div class="metric-label">实验总人数</div>
+          <div class="metric-value">${formatNumber(total)}</div>
+          <div class="metric-sub">初始分配快照共 ${formatNumber(stats.allocation_snapshot.total_count)} 人。</div>
+        </article>
+        <article class="panel metric-card">
+          <div class="metric-label">当前活跃</div>
+          <div class="metric-value">${formatNumber(active)}</div>
+          <div class="metric-sub">退出 ${formatNumber(exited)} 人，活跃占比 ${formatPercent(total ? active / total : 0)}。</div>
+        </article>
+        <article class="panel metric-card">
+          <div class="metric-label">决策批次</div>
+          <div class="metric-value">${formatNumber(stats.decision_stats.total_batches)}</div>
+          <div class="metric-sub">累计决策 agent ${formatNumber(stats.decision_stats.total_agents_decided)} 人次。</div>
+        </article>
+        <article class="panel metric-card">
+          <div class="metric-label">回退率</div>
+          <div class="metric-value">${formatPercent(fallbackRate)}</div>
+          <div class="metric-sub">${busiestZone ? `峰值最高区域 ${busiestZone.zone_name}` : "等待区域统计"}。</div>
+        </article>
+      `;
+    }
+
+    function renderInsights(stats) {
+      const busiestZone = [...stats.zone_stats].sort((left, right) => right.peak_count - left.peak_count)[0];
+      const slowestExit = [...stats.exit_stats].sort((left, right) => right.avg_wait_ms - left.avg_wait_ms)[0];
+      const heaviestCrowd = Object.entries(stats.agent_stats.by_crowd_type || {}).sort(
+        (left, right) => right[1].count - left[1].count
+      )[0];
+
+      const insights = [];
+      if (busiestZone) {
+        insights.push({
+          title: "最高峰区域",
+          text: `${busiestZone.zone_name} 在 ${formatNumber(busiestZone.peak_time_ms)} ms 达到峰值 ${formatNumber(busiestZone.peak_count)} 人，平均人数 ${formatNumber(busiestZone.avg_count, 2)}。`,
+        });
+      }
+      if (slowestExit) {
+        insights.push({
+          title: "最拥堵出口",
+          text: `出口 ${slowestExit.exit_id} 平均等待 ${formatNumber(slowestExit.avg_wait_ms)} ms，最大等待 ${formatNumber(slowestExit.max_wait_ms)} ms。`,
+        });
+      }
+      if (heaviestCrowd) {
+        insights.push({
+          title: "主力人群类型",
+          text: `${heaviestCrowd[0]} 当前总人数 ${formatNumber(heaviestCrowd[1].count)}，其中活跃 ${formatNumber(heaviestCrowd[1].active)}。`,
+        });
+      }
+      insights.push({
+        title: "模型决策表现",
+        text: `LLM fallback 率 ${formatPercent(stats.decision_stats.llm_fallback_rate)}，平均延迟 ${formatNumber(stats.decision_stats.avg_llm_latency_ms)} ms。`,
+      });
+
+      elements.insights.innerHTML = insights
+        .map((item) => `<div class="insight"><strong>${item.title}</strong><span>${item.text}</span></div>`)
+        .join("");
+    }
+
+    function renderCrowdTypes(stats) {
+      const groups = stats.allocation_snapshot.groups || [];
+      if (!groups.length) {
+        elements.crowdTypeChips.innerHTML = `<div class="empty">这个实验没有可展示的人群分配快照。</div>`;
+        return;
+      }
+      elements.crowdTypeChips.innerHTML = groups.map((group) => `
+        <div class="chip">
+          <span class="dot" style="background:${group.color_hex};"></span>
+          <span>${group.display_name} (${group.type_id}) · ${formatNumber(group.count)} 人</span>
+        </div>
+      `).join("");
+    }
+
+    function syncCrowdTypeControls(stats) {
+      const groups = stats.allocation_snapshot.groups || [];
+      const currentFilter = elements.crowdTypeFilter.value;
+      const currentPath = elements.pathCrowdType.value;
+      const selectedCompare = Array.from(elements.compareTypes.selectedOptions).map((option) => option.value);
+
+      const options = groups.map((group) => `<option value="${group.type_id}">${group.display_name} (${group.type_id})</option>`).join("");
+      elements.crowdTypeFilter.innerHTML = `<option value="">全部类型</option>${options}`;
+      elements.pathCrowdType.innerHTML = options || `<option value="">暂无类型</option>`;
+      elements.compareTypes.innerHTML = options;
+
+      if (groups.some((group) => group.type_id === currentFilter)) {
+        elements.crowdTypeFilter.value = currentFilter;
+      }
+      if (groups.some((group) => group.type_id === currentPath)) {
+        elements.pathCrowdType.value = currentPath;
+      } else if (groups[0]) {
+        elements.pathCrowdType.value = groups[0].type_id;
+      }
+
+      Array.from(elements.compareTypes.options).forEach((option, index) => {
+        option.selected = selectedCompare.includes(option.value) || (!selectedCompare.length && index < Math.min(2, groups.length));
+      });
+    }
+
+    function renderZoneTable(stats) {
+      const rows = stats.zone_stats || [];
+      if (!rows.length) {
+        elements.zoneTableBody.innerHTML = `<tr><td colspan="8" class="empty">暂无区域统计。</td></tr>`;
+        return;
+      }
+      elements.zoneTableBody.innerHTML = rows.map((item) => `
+        <tr>
+          <td>${item.zone_name}<div class="meta">${item.zone_id}</div></td>
+          <td>${formatNumber(item.peak_count)}</td>
+          <td>${formatNumber(item.peak_time_ms)}</td>
+          <td>${formatNumber(item.avg_count, 2)}</td>
+          <td>${formatNumber(item.avg_stay_ms)}</td>
+          <td>${formatNumber(item.total_entries)}</td>
+          <td>${formatNumber(item.total_exits)}</td>
+          <td>${formatPercent(item.utilization_rate)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderExitTable(stats) {
+      const rows = stats.exit_stats || [];
+      if (!rows.length) {
+        elements.exitTableBody.innerHTML = `<tr><td colspan="7" class="empty">暂无出口统计。</td></tr>`;
+        return;
+      }
+      elements.exitTableBody.innerHTML = rows.map((item) => `
+        <tr>
+          <td>${item.exit_id}</td>
+          <td>${formatNumber(item.total_passages)}</td>
+          <td>${formatNumber(item.avg_queue_length, 2)}</td>
+          <td>${formatNumber(item.max_queue_length)}</td>
+          <td>${formatNumber(item.avg_wait_ms)}</td>
+          <td>${formatNumber(item.max_wait_ms)}</td>
+          <td>${formatNumber(item.throughput_per_min, 2)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderHeatmap(data) {
+      state.heatmap = data;
+      drawHeatmap(elements.heatmapCanvas, data.grid_config, data.cells || []);
+      elements.heatmapLegendMin.textContent = formatNumber(data.statistics.raw_min ?? data.statistics.min_value, 2);
+      elements.heatmapLegendMid.textContent = data.metric;
+      elements.heatmapLegendMax.textContent = formatNumber(data.statistics.raw_max ?? data.statistics.max_value, 2);
+      elements.heatmapStats.innerHTML = `
+        <div class="mini-stat"><strong>非空网格</strong><span>${formatNumber(data.statistics.non_empty_cells)}</span></div>
+        <div class="mini-stat"><strong>总网格数</strong><span>${formatNumber(data.statistics.total_cells)}</span></div>
+        <div class="mini-stat"><strong>原始最大值</strong><span>${formatNumber(data.statistics.raw_max ?? data.statistics.max_value, 2)}</span></div>
+        <div class="mini-stat"><strong>归一化最大值</strong><span>${formatNumber(data.statistics.max_value, 3)}</span></div>
+      `;
+    }
+
+    function renderCompare(data) {
+      state.compare = data;
+      if (!data.layers.length) {
+        elements.compareGrid.innerHTML = `<div class="empty">当前对比组合没有返回任何图层。</div>`;
+        return;
+      }
+
+      elements.compareGrid.innerHTML = data.layers.map((layer, index) => `
+        <article class="compare-card">
+          <h4><span class="dot" style="background:${layer.color_hex};"></span>${layer.display_name} (${layer.crowd_type})</h4>
+          <canvas id="compareCanvas${index}" width="420" height="280"></canvas>
+          <p>非空网格 ${formatNumber(layer.statistics.non_empty_cells)} / ${formatNumber(layer.statistics.total_cells)}，原始峰值 ${formatNumber(layer.statistics.raw_max ?? layer.statistics.max_value, 2)}。</p>
+        </article>
+      `).join("");
+
+      data.layers.forEach((layer, index) => {
+        const canvas = document.getElementById(`compareCanvas${index}`);
+        drawHeatmap(canvas, data.grid_config, layer.cells || [], layer.color_hex);
+      });
+    }
+
+    function renderPathTraces(data) {
+      state.pathTraces = data;
+      drawPathTraces(elements.pathCanvas, data.traces || [], data.color_hex, state.heatmap?.grid_config || null);
+      elements.pathMeta.innerHTML = `
+        <span><strong>${data.display_name}</strong> (${data.crowd_type})</span>
+        <span>响应内 agent: ${formatNumber(data.agent_count_in_response)}</span>
+        <span>该类型总人数: ${formatNumber(data.total_agents_of_type)}</span>
+        <span>采样率: ${formatNumber(data.sample_rate)}</span>
+      `;
+    }
+
+    function applyStats(stats) {
+      state.stats = stats;
+      renderCards(stats);
+      renderInsights(stats);
+      renderCrowdTypes(stats);
+      renderZoneTable(stats);
+      renderExitTable(stats);
+      syncCrowdTypeControls(stats);
+
+      if (!elements.timeStart.value) {
+        elements.timeStart.value = stats.time_range.start_ms;
+      }
+      if (!elements.timeEnd.value) {
+        elements.timeEnd.value = stats.time_range.end_ms;
+      }
+    }
+
+    async function loadStats() {
+      const experimentId = getExperimentId();
+      updateUrlState();
+      setStatus("正在加载统计", "neutral");
+      const data = await apiRequest(`/experiments/${experimentId}/stats`, { method: "GET" }, experimentId);
+      applyStats(data);
+      setStatus("统计已加载", "neutral");
+      log("统计加载成功", {
+        experiment_id: data.experiment_id,
+        time_range: data.time_range,
+        crowd_types: data.allocation_snapshot.groups.map((group) => group.type_id),
+      });
+      return data;
+    }
+
+    async function loadHeatmap() {
+      const experimentId = getExperimentId();
+      const payload = getHeatmapPayload();
+      setStatus("正在生成热力图", "neutral");
+      const data = await apiRequest(
+        `/experiments/${experimentId}/heatmap`,
+        {
+          method: "POST",
+          headers: buildExperimentHeaders(experimentId),
+          body: JSON.stringify(payload),
+        },
+        experimentId
+      );
+      renderHeatmap(data);
+      setStatus("热力图已更新", "neutral");
+      log("热力图生成成功", data.statistics);
+      return data;
+    }
+
+    async function loadCompare() {
+      const experimentId = getExperimentId();
+      const selected = Array.from(elements.compareTypes.selectedOptions).map((option) => option.value).filter(Boolean);
+      if (!selected.length) {
+        throw new Error("请至少选择一个对比人群类型");
+      }
+      const basePayload = getHeatmapPayload();
+      const payload = {
+        time_start_ms: basePayload.time_start_ms,
+        time_end_ms: basePayload.time_end_ms,
+        grid_config: basePayload.grid_config,
+        metric: basePayload.metric,
+        crowd_types: selected,
+        normalization: basePayload.normalization,
+      };
+      setStatus("正在生成人群热力对比", "neutral");
+      const data = await apiRequest(
+        `/experiments/${experimentId}/heatmap/compare`,
+        {
+          method: "POST",
+          headers: buildExperimentHeaders(experimentId),
+          body: JSON.stringify(payload),
+        },
+        experimentId
+      );
+      renderCompare(data);
+      setStatus("人群对比已更新", "neutral");
+      log("热力图对比生成成功", { layers: data.layers.map((layer) => layer.crowd_type) });
+      return data;
+    }
+
+    async function loadPathTraces() {
+      const experimentId = getExperimentId();
+      const crowdType = requireValue(elements.pathCrowdType.value, "路径人群类型");
+      const query = new URLSearchParams({
+        crowd_type: crowdType,
+        sample_rate: String(numberValue(elements.sampleRate, "采样率")),
+        max_agents: String(numberValue(elements.maxAgents, "最多人数")),
+      });
+      const timeStart = elements.timeStart.value.trim();
+      const timeEnd = elements.timeEnd.value.trim();
+      if (timeStart) {
+        query.set("time_start_ms", timeStart);
+      }
+      if (timeEnd) {
+        query.set("time_end_ms", timeEnd);
+      }
+
+      setStatus("正在加载路径追踪", "neutral");
+      const data = await apiRequest(`/experiments/${experimentId}/path-traces?${query.toString()}`, { method: "GET" }, experimentId);
+      renderPathTraces(data);
+      setStatus("路径追踪已更新", "neutral");
+      log("路径追踪加载成功", {
+        crowd_type: data.crowd_type,
+        agent_count_in_response: data.agent_count_in_response,
+      });
+      return data;
+    }
+
+    async function handleAction(runner) {
+      try {
+        updateUrlState();
+        await runner();
+      } catch (error) {
+        console.error(error);
+        setStatus(`请求失败: ${error.message}`, "warn");
+        log("请求失败", { message: error.message });
+      }
+    }
+
+    async function loadAll() {
+      const stats = await loadStats();
+      if (stats.allocation_snapshot.groups.length && !elements.pathCrowdType.value) {
+        elements.pathCrowdType.value = stats.allocation_snapshot.groups[0].type_id;
+      }
+      await loadHeatmap();
+      if (Array.from(elements.compareTypes.selectedOptions).length) {
+        await loadCompare();
+      }
+      if (elements.pathCrowdType.value) {
+        await loadPathTraces();
+      }
+      setStatus("分析面板已完成刷新", "neutral");
+    }
+
+    elements.loadStatsBtn.addEventListener("click", () => handleAction(loadStats));
+    elements.loadAllBtn.addEventListener("click", () => handleAction(loadAll));
+    elements.loadHeatmapBtn.addEventListener("click", () => handleAction(loadHeatmap));
+    elements.loadCompareBtn.addEventListener("click", () => handleAction(loadCompare));
+    elements.loadPathBtn.addEventListener("click", () => handleAction(loadPathTraces));
+
+    if (elements.experimentId.value.trim()) {
+      handleAction(loadStats);
+    }
+  </script>
+</body>
+</html>
+
