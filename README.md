@@ -84,6 +84,8 @@ APP_DECISION_PROVIDER_MODEL=YOUR_SERVED_MODEL_NAME
 
 模型服务需支持项目使用的 JSON 输出格式。实际请求和 fallback 行为见 [模型接入说明](backend/真实模型决策引擎接入说明.md)。仓库不包含模型权重。
 
+使用本地 vLLM + Qwen3.6-35B-A3B 的完整步骤、配置优先级和 Unity 派发设置见 [本地大模型接入指南](docs/LOCAL_LLM.md)。`APP_DECISION_ENGINE_MODE=local` 和 Unity 的 `LocalOnly` 均表示规则算法，不表示本地大模型；本地 vLLM 应使用 `openai_compatible`。
+
 ## 启动 Unity
 
 1. 使用 Unity Hub 将仓库根目录添加为工程，安装匹配的 Unity 版本。
@@ -125,3 +127,7 @@ experiment-data/
 ## 许可
 
 项目原创源码按 [MIT](LICENSE) 发布。第三方库、字体、素材及数据遵循各自许可，详见 [第三方说明](THIRD_PARTY_NOTICES.md)。
+
+## 论文引用
+
+论文中的代码可用性声明、方法段写法和版本固定方式见 [论文引用与复现说明](docs/PAPER_REPRODUCIBILITY.md)。请引用固定 Release 或 commit，并区分“公开实现版本”与“生成原始实验数据的版本”。
